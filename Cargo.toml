@@ -1,5 +1,5 @@
 [package]
-name = "trainer"
+name = "aaa"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,6 +7,15 @@ edition = "2021"
 
 [dependencies]
 #tch = {version = "0.13.0", features = ["download-libtorch"]}
-tch = "0.13.0"
 anyhow = "1.0.71"
+serde = "1.0"
+serde_json = "1.0"
+log = "0.4"
+env_logger = "0.10"
+
 rand = "0.8.5"
+tch = "0.13.0"
+
+[[bin]]
+name = "dataset"
+path = "src/bin/process_dataset.rs"
