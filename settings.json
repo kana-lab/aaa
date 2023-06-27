@@ -3,15 +3,15 @@
     "download_script_path": "./src/bin/download_from_binance.sh",
     "dataset_directory_path": "./dataset_from_binance/",
     "asset_names": [
-      "BTCUSDT", "ETHUSDT", "XRPUSDT", "ADAUSDT",
-      "DOGEUSDT", "TRXUSDT", "BNBUSDT"
+      "BTCUSDT", "ETHUSDT"
     ],
-    "num_months": 15
+    "num_months": 2
   },
   "process": {
     "price_index_in_csv_record": 4,
     "csv_header_exists": false,
-    "environment_file_path": "./tensors/environment.safetensors",
+    "environment_files_dir": "./tensors/environments/",
+    "default_environment_file_name": "environment.safetensors",
     "training_data_ratio": 12.0,
     "validation_data_ratio": 1.5,
     "test_data_ratio": 1.5,
@@ -21,7 +21,8 @@
   "train": {
     "learning_rate": 1e-5,
     "epoch": 2500,
-    "model_file_path": "./tensors/model.safetensors"
+    "model_files_dir": "./tensors/models/",
+    "default_model_file_name": "model.safetensors"
   },
   "bybit": {
     "asset_names": [

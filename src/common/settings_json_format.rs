@@ -14,7 +14,8 @@ pub struct DownloadSettings {
 pub struct ProcessSettings {
     pub price_index_in_csv_record: usize,
     pub csv_header_exists: bool,
-    pub environment_file_path: String,
+    pub environment_files_dir: String,
+    pub default_environment_file_name: String,
     pub training_data_ratio: f64,
     pub validation_data_ratio: f64,
     pub test_data_ratio: f64,
@@ -26,7 +27,8 @@ pub struct ProcessSettings {
 pub struct TrainSettings {
     pub learning_rate: f64,
     pub epoch: usize,
-    pub model_file_path: String,
+    pub model_files_dir: String,
+    pub default_model_file_name: String,
 }
 
 #[derive(Debug, Deserialize)]

@@ -4,10 +4,17 @@ use std::io::{Read, Write};
 pub fn input(msg: &str) -> String {
     let stdin = io::stdin();
     let mut input = String::new();
+
     print!("{}", msg);
-    io::stdout().flush().expect("Failed to flush stdout.");
-    stdin.read_line(&mut input)
-        .expect("Failed to read input.");
+    if let Err(e) = io::stdout().flush() {
+        eprintln!("Failed to flush stdout: {}", e);
+        std::process::exit(1);
+    }
+
+    if let Err(e) = stdin.read_line(&mut input) {
+        eprintln!("Failed to read input: {}", e);
+        std::process::exit(1);
+    }
     input.trim().to_string()
 }
 
@@ -17,11 +24,20 @@ pub fn input_bool(msg: &str, default: bool) -> bool {
     let annotation = if default { "(Y/n)" } else { "(y/N)" };
     loop {
         print!("{} {} ", msg, annotation);
-        io::stdout().flush().expect("Failed to flush stdout.");
+        if let Err(e) = io::stdout().flush() {
+            eprintln!("Failed to flush stdout: {}", e);
+            std::process::exit(1);
+        }
 
         input.clear();
-        let n = stdin.read_line(&mut input)
-            .expect("Failed to read input.");
+        let n = stdin.read_line(&mut input);
+        let n = if let Err(e) = n {
+            eprintln!("Failed to read input: {}", e);
+            std::process::exit(1);
+        } else {
+            n.unwrap()
+        };
+
         if n == 1 {
             return default;
         }

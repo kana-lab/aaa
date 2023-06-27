@@ -8,7 +8,7 @@ use tch::nn::{BatchNormConfig, ConvConfig, ConvConfigND, init, LinearConfig, Mod
 const N_ASSETS: usize = 8;
 const WINDOW_SIZE: usize = 50;
 const KERNEL_SIZE: [i64; 2] = [N_ASSETS as i64, 4];
-const LR: f64 = 1e-5;
+const LR: f64 = 1e-6;
 // todo: Does total steps described in the paper mean epochs?
 const EPOCH: usize = 2500;
 
@@ -27,6 +27,7 @@ fn load_dataset(device: Device) -> Result<(Tensor, Tensor, Tensor, Tensor)> {
 #[derive(Debug)]
 struct Net {
     conv: nn::Conv2D,
+    // conv: nn::Linear,
     norm2: nn::BatchNorm,
     fc: nn::Linear,
     norm1: nn::BatchNorm,
@@ -46,10 +47,12 @@ impl Net {
         // norm_config.eps = 1e-8;
 
         let conv = nn::conv(vs, 1, 8, KERNEL_SIZE, conv_config);
+        // let conv = nn::linear(vs, (N_ASSETS * WINDOW_SIZE) as i64,376, linear_config.clone());
         let fc = nn::linear(vs, 376, 500, linear_config.clone());
         let output = nn::linear(vs, 500, N_ASSETS as i64, linear_config);
         let norm1 = nn::batch_norm1d(vs, 500, norm_config.clone());
         let norm2 = nn::batch_norm2d(vs, 8, norm_config);
+        // let norm2 = nn::batch_norm1d(vs, 376, norm_config.clone());
         Self { conv, norm2, fc, norm1, output }
     }
 }
@@ -57,6 +60,7 @@ impl Net {
 impl nn::ModuleT for Net {
     fn forward_t(&self, xs: &Tensor, train: bool) -> Tensor {
         xs.view([-1, 1, N_ASSETS as i64, WINDOW_SIZE as i64])
+        // xs.view([-1,(N_ASSETS*WINDOW_SIZE) as i64])
             .apply(&self.conv)
             // .dropout(0.7, train)
             .apply_t(&self.norm2, train)
@@ -86,6 +90,7 @@ fn main() -> Result<()> {
     let vs = nn::VarStore::new(device);
     let net = Net::new(&vs.root());
     let mut opt = nn::Adam::default().build(&vs, LR)?;
+    // let mut opt = nn::Sgd::default().build(&vs, LR)?;
     opt.set_weight_decay(1e-8);
 
     let mut rng = rand::thread_rng();
@@ -99,6 +104,7 @@ fn main() -> Result<()> {
         indices.shuffle(&mut rng);
 
         for &i in &indices {
+            opt.zero_grad();
             let lpm_batch = lpm_batches.get(i);
             let pcr_matrix = pcr_matrices.get(i);
             let mut w = net.forward_t(&lpm_batch, true);
