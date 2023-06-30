@@ -3,7 +3,8 @@ use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use csv::ReaderBuilder;
 use tch::{Kind, Tensor};
-use aaa::common::{input, input_bool, Settings};
+use aaa::util::{input, input_bool};
+use aaa::settings_json_format::Settings;
 
 fn main() {
     // load settings.json

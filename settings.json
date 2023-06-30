@@ -3,11 +3,12 @@
     "download_script_path": "./src/bin/download_from_binance.sh",
     "dataset_directory_path": "./dataset_from_binance/",
     "asset_names": [
-      "BTCUSDT", "ETHUSDT"
+      "ADAUSDT", "BNBUSDT", "BTCUSDT", "DOGEUSDT",
+      "ETHUSDT", "TRXUSDT", "XRPUSDT"
     ],
-    "num_months": 2
+    "num_months": 15
   },
-  "process": {
+  "preprocess": {
     "price_index_in_csv_record": 4,
     "csv_header_exists": false,
     "environment_files_dir": "./tensors/environments/",

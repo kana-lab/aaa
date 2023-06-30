@@ -11,7 +11,7 @@ pub struct DownloadSettings {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct ProcessSettings {
+pub struct PreprocessSettings {
     pub price_index_in_csv_record: usize,
     pub csv_header_exists: bool,
     pub environment_files_dir: String,
@@ -42,7 +42,7 @@ pub struct BybitSettings {
 #[derive(Debug, Deserialize)]
 pub struct Settings {
     pub download: DownloadSettings,
-    pub process: ProcessSettings,
+    pub preprocess: PreprocessSettings,
     pub train: TrainSettings,
     pub bybit: BybitSettings,
 }
