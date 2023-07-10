@@ -19,7 +19,7 @@ pub fn input(msg: &str) -> String {
 }
 
 pub fn input_bool(msg: &str, default: bool) -> bool {
-    let mut stdin = io::stdin();
+    let stdin = io::stdin();
     let mut input = String::new();
     let annotation = if default { "(Y/n)" } else { "(y/N)" };
     loop {

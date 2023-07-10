@@ -17,7 +17,7 @@ fn main() {
     };
 
     let mut env_file_path = Path::new(
-        &settings.process.environment_files_dir
+        &settings.preprocess.environment_files_dir
     ).to_path_buf();
 
     // check if the environment directory exists
@@ -40,7 +40,7 @@ fn main() {
     // check if env.safetensors exists
     // if exists, rename or abort
     env_file_path.push(
-        Path::new(&settings.process.default_environment_file_name)
+        Path::new(&settings.preprocess.default_environment_file_name)
     );
     if env_file_path.exists() {
         println!("environment file does already exist: {}", env_file_path.to_str().unwrap());
@@ -200,7 +200,7 @@ fn make_environment(settings: &Settings) -> Vec<(&str, Tensor)> {
 
             let file = std::fs::File::open(&dataset_path).unwrap();
             let mut csv_reader = ReaderBuilder::new()
-                .has_headers(settings.process.csv_header_exists)
+                .has_headers(settings.preprocess.csv_header_exists)
                 .from_reader(file);
 
             for result in csv_reader.records() {
@@ -209,7 +209,7 @@ fn make_environment(settings: &Settings) -> Vec<(&str, Tensor)> {
                 // on Binance, record format is provided here:
                 //     https://www.binance.com/en/landing/data
                 // we use close price of K-Line - Spot data
-                let close_price = record[settings.process.price_index_in_csv_record]
+                let close_price = record[settings.preprocess.price_index_in_csv_record]
                     .parse::<f64>()
                     .unwrap();
                 gpm.push(close_price);
@@ -247,14 +247,14 @@ fn make_environment(settings: &Settings) -> Vec<(&str, Tensor)> {
     // println!("{}", gpm);
 
     // generate local price matrices and price change rates
-    let (lpm, pcr) = make_local_price_matrix(gpm, settings.process.window_size);
+    let (lpm, pcr) = make_local_price_matrix(gpm, settings.preprocess.window_size);
 
     // calculate sizes to divide dataset into training/validation/test data
-    let base = settings.process.training_data_ratio
-        + settings.process.validation_data_ratio
-        + settings.process.test_data_ratio;
-    let training_data_ratio = settings.process.training_data_ratio / base;
-    let validation_data_ratio = settings.process.validation_data_ratio / base;
+    let base = settings.preprocess.training_data_ratio
+        + settings.preprocess.validation_data_ratio
+        + settings.preprocess.test_data_ratio;
+    let training_data_ratio = settings.preprocess.training_data_ratio / base;
+    let validation_data_ratio = settings.preprocess.validation_data_ratio / base;
     let training_data_size = (lpm.size()[0] as f64 * training_data_ratio) as i64;
     let validation_data_size = (lpm.size()[0] as f64 * validation_data_ratio) as i64;
     let test_data_size = lpm.size()[0] as i64 - training_data_size - validation_data_size;
@@ -263,7 +263,7 @@ fn make_environment(settings: &Settings) -> Vec<(&str, Tensor)> {
     let (lpm_batches, pcr_matrices) = make_mini_batches(
         lpm.narrow(0, 0, training_data_size),
         pcr.narrow(0, 0, training_data_size),
-        settings.process.window_size,
+        settings.preprocess.window_size,
     );
     // println!("{}\n{}", lpm_batches, pcr_matrices);
 

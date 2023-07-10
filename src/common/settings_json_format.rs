@@ -1,6 +1,5 @@
 use std::fs::File;
 use serde::Deserialize;
-use anyhow::Result;
 
 #[derive(Debug, Deserialize)]
 pub struct DownloadSettings {
@@ -48,7 +47,7 @@ pub struct Settings {
 }
 
 impl Settings {
-    pub fn load() -> Result<Self> {
+    pub fn load() -> std::io::Result<Self> {
         let f = File::open("settings.json")?;
         let deserialized: Self = serde_json::from_reader(f)?;
         Ok(deserialized)
