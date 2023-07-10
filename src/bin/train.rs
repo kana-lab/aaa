@@ -135,7 +135,7 @@ fn main() {
         println!("\n[model {}]", n_model);
 
         let vs = nn::VarStore::new(device);
-        let net = Net::new(&vs.root());
+        let net = Net::new(&vs.root(), &settings);
         let mut opt = match nn::Adam::default().build(&vs, settings.train.learning_rate) {
             Ok(ok) => ok,
             Err(e) => {

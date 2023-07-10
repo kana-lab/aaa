@@ -347,7 +347,7 @@ async fn main() {
     };
 
     let mut vs = VarStore::new(Device::cuda_if_available());
-    let net = Net::new(&vs.root());
+    let net = Net::new(&vs.root(), &settings);
 
     let mut env_file_path = Path::new(
         &settings.train.model_files_dir
