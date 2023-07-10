@@ -1,9 +1,9 @@
 use std::collections::HashMap;
-use std::io::Write;
+use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
-use ring::{digest, hmac};
-use serde::de::DeserializeOwned;
+use futures::future;
+use ring::hmac;
 use serde::Deserialize;
 use serde_json::json;
 use tch::nn::{ModuleT, VarStore};
@@ -83,17 +83,13 @@ fn gen_signature(data: &str, settings: &Settings) -> (String, String) {
 
 // qty should be given as USDT when BUY, otherwise as BTC etc.
 async fn place_spot_order(
-    symbol: &str, qty: f64, settings: &Settings,
+    symbol: String, qty: f64, settings: &Settings,
 ) -> Result<(), RequestError> {
     let url = format!("{}/v5/order/create", BASE_URL);
 
-    if qty.abs() <= 0.0001 {
-        return Ok(());
-    }
-
     let data = json!({
         "category": "spot",
-        "symbol": symbol.to_string(),
+        "symbol": symbol,
         "side": if qty > 0. {"Buy"} else {"Sell"},
         "orderType": "Market",
         "qty": qty.abs().to_string()
@@ -111,18 +107,20 @@ async fn place_spot_order(
         .send()
         .await;
 
-    if let Err(e) = response {
-        return Err(NetworkError(e));
-    }
+    let body = match response {
+        Err(e) => { return Err(NetworkError(e)); }
+        Ok(ok) => ok
+    };
 
-    println!("Status: {}", response.unwrap().status());
-    let body = response.unwrap().text().await;
-    if let Err(e) = body {
-        return Err(NetworkError(e));
-    }
+    println!("Status: {}", body.status());
+    let body = body.text().await;
+    let order = match body {
+        Err(e) => { return Err(NetworkError(e)); }
+        Ok(ok) => ok
+    };
 
-    println!("Response body:\n{}", body.unwrap());
-    let order = serde_json::from_str::<BybitResponse<PlaceOrderResultV5>>(&body.unwrap());
+    println!("Response body:\n{}", order);
+    let order = serde_json::from_str::<BybitResponse<PlaceOrderResultV5>>(&order);
     if let Err(e) = order {
         return Err(JsonError(e));
     }
@@ -141,23 +139,24 @@ async fn get_asset_info(settings: &Settings) -> Result<AssetInfoV5, RequestError
         .header("X-BAPI-TIMESTAMP", timestamp)
         .send()
         .await;
-    if let Err(e) = response {
-        return Err(NetworkError(e));
-    }
+    let response = match response {
+        Err(e) => { return Err(NetworkError(e)); }
+        Ok(ok) => ok
+    };
 
-    println!("Status: {}", response.unwrap().status());
-    let body = response.unwrap().text().await;
-    if let Err(e) = body {
-        return Err(NetworkError(e));
-    }
+    println!("Status: {}", response.status());
+    let body = response.text().await;
+    let body = match body {
+        Err(e) => { return Err(NetworkError(e)); }
+        Ok(ok) => ok
+    };
 
-    println!("Response body:\n{}", body.unwrap());
-    let asset_info = serde_json::from_str::<BybitResponse<AssetInfoV5>>(&body.unwrap());
-    if let Err(e) = asset_info {
-        return Err(JsonError(e));
+    println!("Response body:\n{}", body);
+    let asset_info = serde_json::from_str::<BybitResponse<AssetInfoV5>>(&body);
+    match asset_info {
+        Err(e) => Err(JsonError(e)),
+        Ok(info) => Ok(info.result)
     }
-
-    Ok(asset_info.unwrap().result)
 }
 
 async fn get_asset_vec(settings: &Settings) -> Result<Tensor, RequestError> {
@@ -168,7 +167,7 @@ async fn get_asset_vec(settings: &Settings) -> Result<Tensor, RequestError> {
     }
 
     let mut v = vec![0.; settings.bybit.asset_names.len()];
-    for asset in a_info.result.spot.assets {
+    for asset in a_info.spot.assets {
         v[*dict.get(&asset.coin).unwrap()] = f64::from_str(&asset.free).unwrap();
     }
 
@@ -183,35 +182,41 @@ async fn get_spot_price(symbol: &str, window_size: usize) -> Result<KLineV5, Req
     );
 
     let response = reqwest::get(url).await;
-    if let Err(e) = response {
-        return Err(NetworkError(e));
-    }
+    let response = match response {
+        Err(e) => { return Err(NetworkError(e)); }
+        Ok(ok) => ok
+    };
 
-    let body = response.unwrap().text().await;
-    if let Err(e) = body {
-        return Err(NetworkError(e));
-    }
+    let body = response.text().await;
+    let body = match body {
+        Err(e) => { return Err(NetworkError(e)); }
+        Ok(ok) => ok
+    };
 
-    let parsed = serde_json::from_str::<BybitResponse<KLineV5>>(&body.unwrap());
-    if let Err(e) = parsed {
-        return Err(JsonError(e));
+    let parsed = serde_json::from_str::<BybitResponse<KLineV5>>(&body);
+    match parsed {
+        Err(e) => Err(JsonError(e)),
+        Ok(body) => {
+            if body.retCode != 0 {
+                Err(BybitError(body.retCode, body.retMsg))
+            } else {
+                Ok(body.result)
+            }
+        }
     }
-
-    let body = parsed.unwrap();
-    if body.retCode != 0 {
-        return Err(BybitError(body.retCode, body.retMsg));
-    }
-
-    Ok(body.result)
 }
 
 async fn get_price_mat(settings: &Settings) -> Result<(Tensor, Tensor), RequestError> {
     let mut tasks = Vec::new();
     for asset in &settings.bybit.asset_names[1..] {
-        let task = || async {
-            let p = get_spot_price(
-                &format!("{}USDT", asset), settings.preprocess.window_size,
-            ).await?;
+        let window_size = settings.preprocess.window_size;
+        let symbol = format!("{}USDT", asset);
+        let task = async move {
+            let p = get_spot_price(&symbol, window_size).await;
+            let p = match p {
+                Ok(ok) => ok,
+                Err(e) => { return Err(e); }
+            };
             let current_price = f64::from_str(&p.list[0][4]).unwrap();
 
             let mut history = vec![];
@@ -221,17 +226,17 @@ async fn get_price_mat(settings: &Settings) -> Result<(Tensor, Tensor), RequestE
                 );
             }
             // println!("{} {:?}", asset, history);
-            (current_price, Tensor::from_slice(&history))
+            Ok((current_price, Tensor::from_slice(&history)))
         };
-        tasks.push(task());
+        tasks.push(tokio::spawn(task));
     }
 
-    let result: Result<Vec<(f64, Tensor)>, RequestError> = tokio::try_join!(tasks);
-    let result = result?;
+    let result = future::join_all(tasks.into_iter()).await;
 
     let mut v = vec![1.];
-    let mut lpm = vec![Tensor::from_slice(&vec![1.; window_size])];
-    for (current_price, history) in result {
+    let mut lpm = vec![Tensor::from_slice(&vec![1.; settings.preprocess.window_size])];
+    for r in result {
+        let (current_price, history) = r.unwrap()?;
         v.push(current_price);
         lpm.push(history);
     }
@@ -305,10 +310,10 @@ async fn one_step(net: &Net, device: Device, settings: &Settings) -> Result<(), 
         if qty.is_none() { continue; }
         let qty = qty.unwrap();
         sell_orders.push(place_spot_order(
-            &format!("{}USDT", asset_name), qty, settings,
+            format!("{}USDT", asset_name), qty, settings,
         ));
     }
-    tokio::try_join!(sell_orders)?;
+    let r = future::join_all(sell_orders).await;
 
     let mut buy_orders = Vec::new();
     for (i, asset_name) in settings.bybit.asset_names.iter().enumerate() {
@@ -320,58 +325,40 @@ async fn one_step(net: &Net, device: Device, settings: &Settings) -> Result<(), 
         if qty.is_none() { continue; }
         let qty = qty.unwrap();
         buy_orders.push(place_spot_order(
-            &format!("{}USDT", asset_name), qty, settings,
+            format!("{}USDT", asset_name), qty, settings,
         ));
     }
-    tokio::try_join!(buy_orders)?;
-
-    // for (i, &asset_name) in ASSETS.iter().enumerate() {
-    //     if i == 0 || asset_name == "DOGE" { continue; }
-    //
-    //     println!("asset_name: {}", asset_name);
-    //     let mut qty = f64::try_from(diff.get(i as i64)).unwrap();
-    //     qty *= 0.995;
-    //     if qty < 0. {
-    //         qty /= f64::try_from(price.get(i as i64)).unwrap();
-    //         let di = if asset_name == "BTC" { 1e4 } else if asset_name == "ADA" { 1e1 } else { 1e2 };
-    //         qty = (qty * di).round() / di;
-    //     } else {
-    //         qty = qty.round();
-    //     }
-    //     println!("raw_qty: {}", qty);
-    //     place_spot_order(
-    //         &format!("{}USDT", asset_name),
-    //         qty,
-    //         settings,
-    //     ).await.unwrap();
-    // }
+    let r = future::join_all(buy_orders).await;
 
     Ok(())
 }
 
 #[tokio::main]
 async fn main() {
-    // let a = get_spot_price("BTCUSDT").await.unwrap();
-    // println!("{:?}", a);
-    // let a = place_spot_order("BNBUSDT", 98., 4).await.unwrap();
-    // println!("{:?}", a);
-    // let a = get_asset_info().await.unwrap();
-    // let a = get_price_mat().await;
-
     let device = Device::cuda_if_available();
     println!("Device: {:?}", device);
 
     let settings = match Settings::load() {
         Ok(ok) => ok,
         Err(e) => {
-            eprintln!("could not read settings.json.");
+            eprintln!("could not read settings.json: {}", e);
             std::process::exit(1);
         }
     };
 
     let mut vs = VarStore::new(Device::cuda_if_available());
     let net = Net::new(&vs.root());
-    vs.load("./model.safetensors").unwrap();
+
+    let mut env_file_path = Path::new(
+        &settings.train.model_files_dir
+    ).to_path_buf();
+    env_file_path.push(Path::new(
+        &settings.train.default_model_file_name
+    ));
+    if let Err(e) = vs.load(env_file_path) {
+        eprintln!("Failed to load model file: {}", e);
+        std::process::exit(1);
+    }
 
     let interval = Duration::from_secs(1800);
     let mut interval_timer = time::interval(interval);
