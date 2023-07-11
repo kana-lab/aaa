@@ -1,8 +1,7 @@
-use tch::{Device, Kind, nn, no_grad, Tensor};
-use tch::nn::{BatchNormConfig, ConvConfig, ConvConfigND, init, LinearConfig, ModuleT, OptimizerConfig};
+use tch::{Kind, nn, Tensor};
 use crate::settings_json_format::Settings;
 
-const KERNEL_SIZE: [i64; 2] = [N_ASSETS as i64, 4];
+const KERNEL_SIZE: i64 = 4;
 const DROPOUT_RATE: f64 = 0.7;
 
 #[derive(Debug)]
@@ -23,10 +22,10 @@ impl Net {
         let n_assets = settings.download.asset_names.len() as i64 + 1;
 
         let conv = nn::conv(
-            vs, 1, n_assets, KERNEL_SIZE, Default::default(),
+            vs, 1, n_assets, [n_assets, KERNEL_SIZE], Default::default(),
         );
         let fc = nn::linear(
-            vs, n_assets * (window_size - KERNEL_SIZE[1] + 1),
+            vs, n_assets * (window_size - KERNEL_SIZE + 1),
             500, Default::default(),
         );
         let output = nn::linear(vs, 500, n_assets, Default::default());

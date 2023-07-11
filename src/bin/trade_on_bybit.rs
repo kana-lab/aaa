@@ -13,7 +13,8 @@ use aaa::net::Net;
 use aaa::settings_json_format::Settings;
 use crate::RequestError::{BybitError, JsonError, NetworkError};
 
-const BASE_URL: &str = "https://api-testnet.bybit.com";
+// const BASE_URL: &str = "https://api-testnet.bybit.com";
+const BASE_URL: &str = "https://api.bybit.com";
 const MARKET_URL: &str = "https://api.bybit.com";
 
 #[allow(non_snake_case)]
@@ -255,25 +256,25 @@ fn round_qty(qty: f64, asset_name: &str) -> Option<f64> {
 
     if qty > 0. {
         match asset_name {
-            "XRP" => if qty < 10. { None } else { Some(round_by_floor(qty, 1e6)) },
+            "XRP" => if qty < 1. { None } else { Some(round_by_floor(qty, 1e6)) },
             "BTC" => if qty < 1. { None } else { Some(round_by_floor(qty, 1e8)) }
             "ETH" => if qty < 1. { None } else { Some(round_by_floor(qty, 1e7)) },
-            "BNB" => if qty < 0.0001 { None } else { Some(round_by_floor(qty, 1e4)) },
-            "DOGE" => if qty < 10. { None } else { Some(round_by_floor(qty, 1e6)) },
-            "ADA" => if qty < 10. { None } else { Some(round_by_floor(qty, 1e4)) },
-            "TRX" => if qty < 0.00001 { None } else { Some(round_by_floor(qty, 1e5)) },
+            "BNB" => if qty < 1. { None } else { Some(round_by_floor(qty, 1e9)) },
+            "DOGE" => if qty < 1. { None } else { Some(round_by_floor(qty, 1e6)) },
+            "ADA" => if qty < 1. { None } else { Some(round_by_floor(qty, 1e6)) },
+            "TRX" => if qty < 1. { None } else { Some(round_by_floor(qty, 1e7)) },
             _ => unreachable!()
         }
     } else {
         let qty_abs = qty.abs();
         match asset_name {
-            "XRP" => if qty_abs < 1. { None } else { Some(-round_by_floor(qty_abs, 1e2)) },
-            "BTC" => if qty_abs < 0.00004 { None } else { Some(-round_by_floor(qty_abs, 1e6)) },
-            "ETH" => if qty_abs < 0.0005 { None } else { Some(-round_by_floor(qty_abs, 1e5)) },
-            "BNB" => if qty_abs < 0.0001 { None } else { Some(-round_by_floor(qty_abs, 1e4)) },
-            "DOGE" => if qty_abs < 37. { None } else { Some(-round_by_floor(qty_abs, 1e1)) },
-            "ADA" => if qty_abs < 4.2 { None } else { Some(-round_by_floor(qty_abs, 1e1)) },
-            "TRX" => if qty_abs < 0.00001 { None } else { Some(-round_by_floor(qty_abs, 1e5)) },
+            "XRP" => if qty_abs < 2.63 { None } else { Some(-round_by_floor(qty_abs, 1e2)) },
+            "BTC" => if qty_abs < 0.000048 { None } else { Some(-round_by_floor(qty_abs, 1e6)) },
+            "ETH" => if qty_abs < 0.00062 { None } else { Some(-round_by_floor(qty_abs, 1e5)) },
+            "BNB" => if qty_abs < 0.00262 { None } else { Some(-round_by_floor(qty_abs, 1e5)) },
+            "DOGE" => if qty_abs < 6.9 { None } else { Some(-round_by_floor(qty_abs, 1e1)) },
+            "ADA" => if qty_abs < 1.86 { None } else { Some(-round_by_floor(qty_abs, 1e2)) },
+            "TRX" => if qty_abs < 14.14 { None } else { Some(-round_by_floor(qty_abs, 1e2)) },
             _ => unreachable!()
         }
     }
