@@ -30,8 +30,8 @@ for ASSET in $ASSET_NAMES; do
   CURRENT_MONTH="$START_MONTH"
   j=0
   while [[ $CURRENT_MONTH < $END_MONTH ]]; do
-    FILE_NAME="$ASSET-30m-${CURRENT_MONTH%-*}"
-    URL="$BASE_URL/$ASSET/30m/$FILE_NAME.zip"
+    FILE_NAME="$ASSET-1m-${CURRENT_MONTH%-*}"
+    URL="$BASE_URL/$ASSET/1m/$FILE_NAME.zip"
 
     wget -O "./$ASSET/$FILE_NAME.zip" "$URL"
     unzip "./$ASSET/$FILE_NAME.zip" -d "../$i/"
