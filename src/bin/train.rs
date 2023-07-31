@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 use std::fs;
+use std::fs::File;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::slice::Iter;
 use tch::{Device, Kind, nn, Tensor};
@@ -211,6 +213,72 @@ fn main() {
 }
 
 #[test]
+fn visualize() {
+    let device = Device::cuda_if_available();
+    println!("Device: {:?}", device);
+
+    let settings = match Settings::load() {
+        Ok(ok) => ok,
+        Err(e) => {
+            eprintln!("could not read settings.json: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let mut vs = nn::VarStore::new(Device::cuda_if_available());
+    let net = Net::new(&vs.root(), &settings);
+
+    let mut env_file_path = Path::new(
+        &settings.train.model_files_dir
+    ).to_path_buf();
+    env_file_path.push(Path::new(
+        &settings.train.default_model_file_name
+    ));
+    if let Err(e) = vs.load(env_file_path) {
+        eprintln!("Failed to load model file: {}", e);
+        std::process::exit(1);
+    }
+
+
+    let env = load_environment(device, &settings);
+
+
+    let get_actual_reward = |net: &Net, test: bool| {
+        let lpm = if test { &env.test_lpm } else { &env.validation_lpm };
+        let pcr = if test { &env.test_pcr } else { &env.validation_pcr };
+        let w = net.forward_t(lpm, false);
+        let dim: &[i64] = &[1];
+        let r = (&w * pcr)
+            .sum_dim_intlist(dim, false, Kind::Float)
+            .cumprod(0, Kind::Float);
+        (
+            Vec::<i64>::try_from(Tensor::from_slice(&(1..=w.size()[0]).collect::<Vec<i64>>()) * 30).unwrap(),
+            Vec::<f64>::try_from(r).unwrap()
+        )
+    };
+
+    let (x,y) = get_actual_reward(&net, true);
+    assert_eq!(x.len(), y.len());
+    let mut output = File::create("vis_data.txt").unwrap();
+    write!(output, "x1 = [ 0,").unwrap();
+    for (i, x1) in x.iter().enumerate() {
+        if i%30==0 {
+            write!(output, "\n\t").unwrap();
+        }
+        write!(output,"{}, ", x1).unwrap();
+    }
+    write!(output, "]\n\ny1 = [ 1.0,").unwrap();
+
+    for (i, y1) in y.iter().enumerate() {
+        if i%30==0 {
+            write!(output, "\n\t").unwrap();
+        }
+        write!(output,"{}, ", y1).unwrap();
+    }
+    write!(output, "]\n").unwrap();
+}
+
+#[test]
 fn t() {
     // 行列の定義
     let matrix = Tensor::from_slice(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).reshape(&[2, 3]);
@@ -233,4 +301,11 @@ fn t2() {
     let vs = nn::VarStore::new(Device::cuda_if_available());
     let conv = nn::conv(&vs.root(), 2, 12, [12, 4], Default::default());
     println!("{:?}", conv)
+}
+
+#[test]
+fn t3() {
+    let v = Tensor::from_slice(&[1, 2, 3, 4]).reshape(&[2, 2]);
+    let v = v.sum_dim_intlist(0, false, Kind::Int);
+    println!("{}", v);
 }
