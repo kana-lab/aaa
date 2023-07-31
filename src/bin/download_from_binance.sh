@@ -17,6 +17,7 @@ mkdir raw
 cd raw || exit
 
 END_MONTH=$(date +%Y-%m-%d)
+END_MONTH="${END_MONTH%-*}-15"
 START_MONTH=$(date -d "$END_MONTH -$NUM_MONTHS month" +%Y-%m-%d)
 
 # ref: https://unix.stackexchange.com/questions/276614/bash-while-loop-read-from-colon-delimited-list-of-paths-using-ifs

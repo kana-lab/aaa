@@ -247,7 +247,7 @@ fn make_environment(settings: &Settings) -> Vec<(&str, Tensor)> {
     // println!("{}", gpm);
 
     // generate local price matrices and price change rates
-    let (lpm, pcr) = make_local_price_matrix(gpm, settings.preprocess.window_size);
+    // let (lpm, pcr) = make_local_price_matrix(gpm, settings.preprocess.window_size);
 
     // calculate sizes to divide dataset into training/validation/test data
     let base = settings.preprocess.training_data_ratio
@@ -255,41 +255,61 @@ fn make_environment(settings: &Settings) -> Vec<(&str, Tensor)> {
         + settings.preprocess.test_data_ratio;
     let training_data_ratio = settings.preprocess.training_data_ratio / base;
     let validation_data_ratio = settings.preprocess.validation_data_ratio / base;
-    let training_data_size = (lpm.size()[0] as f64 * training_data_ratio) as i64;
-    let validation_data_size = (lpm.size()[0] as f64 * validation_data_ratio) as i64;
-    let test_data_size = lpm.size()[0] as i64 - training_data_size - validation_data_size;
+    let training_data_size = (gpm.size()[1] as f64 * training_data_ratio) as i64;
+    let validation_data_size = (gpm.size()[1] as f64 * validation_data_ratio) as i64;
+    let test_data_size = gpm.size()[1] as i64 - training_data_size - validation_data_size;
 
-    // make mini-batches and price change matrices
-    let (lpm_batches, pcr_matrices) = make_mini_batches(
-        lpm.narrow(0, 0, training_data_size),
-        pcr.narrow(0, 0, training_data_size),
-        settings.preprocess.window_size,
+    let validation_gpm = gpm.narrow(1, training_data_size, validation_data_size);
+    let (validation_lpm, validation_pcr)=make_local_price_matrix(
+        validation_gpm, settings.preprocess.window_size
     );
-    // println!("{}\n{}", lpm_batches, pcr_matrices);
-
-    // divide dataset into training/validation/test data
-    let validation_lpm = lpm.narrow(
-        0, training_data_size, validation_data_size,
-    );
-    let validation_pcr = pcr.narrow(
-        0, training_data_size, validation_data_size,
-    );
-    let test_lpm = lpm.narrow(
-        0, training_data_size + validation_data_size, test_data_size,
-    );
-    let test_pcr = pcr.narrow(
-        0, training_data_size + validation_data_size, test_data_size,
+    let test_gpm =gpm.narrow(1, training_data_size + validation_data_size, test_data_size);
+    let (test_lpm, test_pcr) = make_local_price_matrix(
+        test_gpm, settings.preprocess.window_size
     );
 
     vec![
-        // this type conversion is IMPORTANT
-        ("lpm_batches", lpm_batches.totype(Kind::Float)),
-        ("pcr_matrices", pcr_matrices.totype(Kind::Float)),
-        ("validation_lpm", validation_lpm.totype(Kind::Float)),
+        ("train_gpm", gpm.narrow(1, 0, training_data_size).totype(Kind::Float)),
+        // ("validation_gpm", gpm.narrow(1, training_data_size, validation_data_size).totype(Kind::Float)),
+        // ("test_gpm", gpm.narrow(1, training_data_size + validation_data_size, test_data_size)
+        //     .totype(Kind::Float)),
         ("validation_pcr", validation_pcr.totype(Kind::Float)),
-        ("test_lpm", test_lpm.totype(Kind::Float)),
+        ("validation_lpm", validation_lpm.totype(Kind::Float)),
         ("test_pcr", test_pcr.totype(Kind::Float)),
+        ("test_lpm", test_lpm.totype(Kind::Float)),
     ]
+
+    // // make mini-batches and price change matrices
+    // let (lpm_batches, pcr_matrices) = make_mini_batches(
+    //     lpm.narrow(0, 0, training_data_size),
+    //     pcr.narrow(0, 0, training_data_size),
+    //     settings.preprocess.window_size,
+    // );
+    // // println!("{}\n{}", lpm_batches, pcr_matrices);
+    //
+    // // divide dataset into training/validation/test data
+    // let validation_lpm = lpm.narrow(
+    //     0, training_data_size, validation_data_size,
+    // );
+    // let validation_pcr = pcr.narrow(
+    //     0, training_data_size, validation_data_size,
+    // );
+    // let test_lpm = lpm.narrow(
+    //     0, training_data_size + validation_data_size, test_data_size,
+    // );
+    // let test_pcr = pcr.narrow(
+    //     0, training_data_size + validation_data_size, test_data_size,
+    // );
+    //
+    // vec![
+    //     // this type conversion is IMPORTANT
+    //     ("lpm_batches", lpm_batches.totype(Kind::Float)),
+    //     ("pcr_matrices", pcr_matrices.totype(Kind::Float)),
+    //     ("validation_lpm", validation_lpm.totype(Kind::Float)),
+    //     ("validation_pcr", validation_pcr.totype(Kind::Float)),
+    //     ("test_lpm", test_lpm.totype(Kind::Float)),
+    //     ("test_pcr", test_pcr.totype(Kind::Float)),
+    // ]
 }
 
 // returns local price matrix and price change vectors
