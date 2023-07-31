@@ -23,7 +23,7 @@
     "learning_rate": 1e-6,
     "epoch": 500,
     "model_files_dir": "./tensors/models_1m/",
-    "default_model_file_name": "model_1m.safetensors"
+    "default_model_file_name": "model_1m_ver3.safetensors"
   },
   "bybit": {
     "asset_names": [

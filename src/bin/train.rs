@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 use std::fs;
+use std::fs::File;
+use std::io::Write;
 use std::ops::{Add, Mul};
 use std::path::{Path, PathBuf};
 use std::slice::Iter;
@@ -304,6 +306,87 @@ fn main() {
             eprintln!("Failed to save the model: {}", e);
         }
     };
+}
+
+
+#[test]
+fn visualize() {
+    let device = Device::cuda_if_available();
+    println!("Device: {:?}", device);
+
+    let settings = match Settings::load() {
+        Ok(ok) => ok,
+        Err(e) => {
+            eprintln!("could not read settings.json: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let mut vs = nn::VarStore::new(Device::cuda_if_available());
+    let net = Net::new(&vs.root(), &settings);
+
+    let mut env_file_path = Path::new(
+        &settings.train.model_files_dir
+    ).to_path_buf();
+    env_file_path.push(Path::new(
+        &settings.train.default_model_file_name
+    ));
+    if let Err(e) = vs.load(env_file_path) {
+        eprintln!("Failed to load model file: {}", e);
+        std::process::exit(1);
+    }
+
+
+    let env = load_environment(device, &settings);
+
+
+    let get_actual_reward = |net: &Net, test: bool|  {
+        let lpm = if test { &env.test_lpm } else { &env.validation_lpm };
+        let pcr = if test { &env.test_pcr } else { &env.validation_pcr };
+        let (p, w) = net.forward_t(lpm, false);
+
+        let timing_idx = p.gt(0.5).nonzero().flatten(0, -1);
+        let pcr = Tensor::cat(&[
+            &Tensor::ones([1, pcr.size()[1]], (Kind::Float, device)), pcr
+        ], 0);
+        let pcr_cumprod = pcr.cumprod(0, Kind::Float);
+        let w = w.index_select(0, &timing_idx);
+        let pcr = pcr_cumprod.index_select(0, &timing_idx);
+        let pcr = Tensor::cat(&[
+            pcr.narrow(0, 1, pcr.size()[0] - 1),
+            pcr_cumprod.narrow(0, pcr_cumprod.size()[0] - 1, 1)
+        ], 0) / pcr;
+
+        let dim: &[i64] = &[1];
+        let r = (&w * pcr)
+            .sum_dim_intlist(dim, false, Kind::Float)
+            .cumprod(0, Kind::Float);
+        let mut r = Vec::<f64>::try_from(r).unwrap();
+        r.insert(0, 1.0);
+        let mut timing_idx = Vec::<i64>::try_from(timing_idx).unwrap();
+        timing_idx.push(p.size()[0]);
+        (timing_idx, r)
+    };
+
+    let (x,y) = get_actual_reward(&net, true);
+    assert_eq!(x.len(), y.len());
+    let mut output = File::create("vis_data2.txt").unwrap();
+    write!(output, "x2 = [ 0,").unwrap();
+    for (i, x1) in x.iter().enumerate() {
+        if i%30==0 {
+            write!(output, "\n\t").unwrap();
+        }
+        write!(output,"{}, ", x1).unwrap();
+    }
+    write!(output, "]\n\ny2 = [ 1.0,").unwrap();
+
+    for (i, y1) in y.iter().enumerate() {
+        if i%30==0 {
+            write!(output, "\n\t").unwrap();
+        }
+        write!(output,"{}, ", y1).unwrap();
+    }
+    write!(output, "]\n").unwrap();
 }
 
 #[test]
